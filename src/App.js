@@ -24,6 +24,8 @@ const tempMovieData = [
   },
 ];
 
+const KEY = "180734cf";
+
 const tempWatchedData = [
   {
     imdbID: "tt1375666",
@@ -50,8 +52,12 @@ const average = (arr) =>
   arr.reduce((acc, cur, i, arr) => acc + cur / arr.length, 0);
 
 export default function App() {
-  const [movies, setMovies] = useState(tempMovieData);
-  const [watched, setWatched] = useState(tempWatchedData);
+  const [movies, setMovies] = useState([]);
+  const [watched, setWatched] = useState([]);
+
+  fetch(`http://www.omdbapi.com/?apikey=${KEY}&s=interstellar`)
+    .then((res) => res.json())
+    .then((data) => setMovies(data.Search));
 
   return (
     <>
