@@ -73,6 +73,7 @@ export default function App() {
   }
   function handleSelectedMovieClose() {
     setSelectedId(null);
+    document.title = "usePopcorn";
   }
   function handleAddWatch(movie) {
     setWatched((watched) => [...watched, movie]);
@@ -236,6 +237,15 @@ function SelectedMovieDetails({ selectedId, goBack, onAddWatched, watched }) {
   const [error, setError] = useState("");
   const [userRating, setUserRating] = useState(null);
   const [movie, setMovie] = useState({});
+
+  useEffect(
+    function () {
+      if (!movie.Title) return;
+      document.title = `MOVIE: ${movie.Title}`;
+    },
+    [movie.Title],
+  );
+
   useEffect(
     function () {
       async function fetchSelectedMovieDetails() {
