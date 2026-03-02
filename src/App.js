@@ -227,17 +227,29 @@ function Movie({ movie, onSelectMovie }) {
 }
 
 function SelectedMovieDetails({ selectedId, goBack }) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
   const [movie, setMovie] = useState({});
 
   useEffect(
     function () {
       async function fetchSelectedMovieDetails() {
-        const res = await fetch(
-          `http://www.omdbapi.com/?apikey=${KEY}&i=${selectedId}`,
-        );
+        try {
+          setIsLoading(true);
+          const res = await fetch(
+            `http://www.omdbapi.com/?apikey=${KEY}&i=${selectedId}`,
+          );
 
-        const data = await res.json();
-        setMovie(data);
+          const data = await res.json();
+          setMovie(data);
+          setIsLoading(false);
+        } catch (err) {
+          setError(err.message);
+          throw new Error("something went wrong while fetching movie");
+        } finally {
+          setError("");
+        }
       }
       fetchSelectedMovieDetails();
     },
@@ -245,28 +257,37 @@ function SelectedMovieDetails({ selectedId, goBack }) {
   );
 
   return (
-    <div className="details">
-      <header>
-        <button onClick={goBack} className="btn-back">
-          {"<--"}
-        </button>
-        <img src={`${movie.Poster}`} alt={`poster of movie:${movie.Title}`} />
-        <div className="details-overview">
-          <h2>{movie.Title}</h2>
-          <p>
-            {movie.Released} | {movie.Runtime} |
-          </p>
-          <p>⭐{movie.imdbRating} imdb rating</p>
-          <p>{movie.Actors}</p>
+    <>
+      {isLoading && <Loader />}
+      {!isLoading && error && <ErrMessage message={error} />}
+      {!isLoading && !error && (
+        <div className="details">
+          <header>
+            <button onClick={goBack} className="btn-back">
+              {"<--"}
+            </button>
+            <img
+              src={`${movie.Poster}`}
+              alt={`poster of movie:${movie.Title}`}
+            />
+            <div className="details-overview">
+              <h2>{movie.Title}</h2>
+              <p>
+                {movie.Released} | {movie.Runtime} |
+              </p>
+              <p>⭐{movie.imdbRating} imdb rating</p>
+              <p>{movie.Actors}</p>
+            </div>
+          </header>
+          <section>
+            <div className="rating">
+              <StarRating maxRating={10} size="25" />
+            </div>
+            <p>{movie.Plot}</p>
+          </section>
         </div>
-      </header>
-      <section>
-        <div className="rating">
-          <StarRating maxRating={10} size="25" />
-        </div>
-        <p>{movie.Plot}</p>
-      </section>
-    </div>
+      )}
+    </>
   );
 }
 
