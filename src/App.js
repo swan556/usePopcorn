@@ -73,7 +73,6 @@ export default function App() {
   }
   function handleSelectedMovieClose() {
     setSelectedId(null);
-    document.title = "usePopcorn";
   }
   function handleAddWatch(movie) {
     setWatched((watched) => [...watched, movie]);
@@ -81,12 +80,14 @@ export default function App() {
 
   useEffect(
     function () {
+      const controller = new AbortController();
       async function fetchMovies() {
         try {
           setError("");
           setIsLoading(true);
           const res = await fetch(
             `http://www.omdbapi.com/?apikey=${KEY}&s=${query}`,
+            { signal: controller.signal },
           );
           if (!res.ok) throw new Error("something went wrong");
 
@@ -96,7 +97,7 @@ export default function App() {
           console.log(data.Search);
         } catch (err) {
           console.error(err.message);
-          setError(err.message);
+          if (err.name !== "AbortError") setError(err.message);
         } finally {
           setIsLoading(false);
         }
@@ -107,6 +108,10 @@ export default function App() {
         return;
       }
       fetchMovies();
+
+      return function () {
+        controller.abort();
+      };
     },
     [query],
   );
@@ -242,6 +247,9 @@ function SelectedMovieDetails({ selectedId, goBack, onAddWatched, watched }) {
     function () {
       if (!movie.Title) return;
       document.title = `MOVIE: ${movie.Title}`;
+      return function () {
+        document.title = "usePopcorn";
+      };
     },
     [movie.Title],
   );
