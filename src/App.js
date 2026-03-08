@@ -14,7 +14,6 @@ export default function App() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const tempQuery = "interstellar";
   const [query, setQuery] = useState("");
 
   // useEffect(function () {
@@ -152,6 +151,11 @@ function Logo() {
 }
 
 function SearchBar({ query, setQuery }) {
+  useEffect(function () {
+    const el = document.querySelector(".search");
+    el.focus();
+  }, []);
+
   return (
     <input
       className="search"
