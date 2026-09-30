@@ -168,6 +168,11 @@ body {
   background-color: var(--color-background-100);
 }
 
+.list.list-movies li:focus-visible {
+  outline: 2px solid var(--color-primary-light);
+  outline-offset: -2px;
+}
+
 .list img {
   width: 100%;
   grid-row: 1 / -1;

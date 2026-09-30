@@ -1,16 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import StarRating from "./StarRating";
 import { useMovies } from "./useMovies";
 import { useLocalStorageState } from "./useLocalStorageState";
 
-const average = (arr) =>
-  arr.reduce((acc, cur, i, arr) => acc + cur / arr.length, 0);
+const average = (arr) => {
+  const validValues = arr.filter(Number.isFinite);
+  return validValues.length
+    ? validValues.reduce((total, value) => total + value, 0) /
+        validValues.length
+    : 0;
+};
 
 const KEY = "180734cf";
 
 export default function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState("");
+
+  const handleSelectedMovieClose = useCallback(() => {
+    setSelectedId(null);
+  }, []);
 
   const { movies, isLoading, error } = useMovies(
     query,
@@ -22,11 +31,13 @@ export default function App() {
   function handleSelectMovie(id) {
     setSelectedId(id);
   }
-  function handleSelectedMovieClose() {
-    setSelectedId(null);
-  }
+
   function handleAddWatch(movie) {
-    setWatched((watched) => [...watched, movie]);
+    setWatched((watched) =>
+      watched.some((watchedMovie) => watchedMovie.imdbid === movie.imdbid)
+        ? watched
+        : [...watched, movie],
+    );
   }
 
   return (
@@ -46,6 +57,7 @@ export default function App() {
         <MovieBox>
           {selectedId ? (
             <SelectedMovieDetails
+              key={selectedId}
               selectedId={selectedId}
               goBack={handleSelectedMovieClose}
               onAddWatched={handleAddWatch}
@@ -157,8 +169,20 @@ function MovieList({ movies, onSelectMovie }) {
 
 function Movie({ movie, onSelectMovie }) {
   return (
-    <li onClick={() => onSelectMovie(movie.imdbID)} key={movie.imdbID}>
-      <img src={movie.Poster} alt={`${movie.Title} poster`} />
+    <li
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelectMovie(movie.imdbID)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelectMovie(movie.imdbID);
+        }
+      }}
+    >
+      {movie.Poster && movie.Poster !== "N/A" && (
+        <img src={movie.Poster} alt={`${movie.Title} poster`} />
+      )}
       <h3>{movie.Title}</h3>
       <div>
         <p>
@@ -197,36 +221,60 @@ function SelectedMovieDetails({ selectedId, goBack, onAddWatched, watched }) {
 
   useEffect(
     function () {
+      const controller = new AbortController();
+      let isCurrentRequest = true;
+
       async function fetchSelectedMovieDetails() {
         try {
           setIsLoading(true);
+          setError("");
+          setMovie({});
           const res = await fetch(
-            `http://www.omdbapi.com/?apikey=${KEY}&i=${selectedId}`,
+            `https://www.omdbapi.com/?apikey=${KEY}&i=${encodeURIComponent(selectedId)}`,
+            { signal: controller.signal },
           );
+          if (!res.ok) {
+            throw new Error(`Movie details failed (HTTP ${res.status})`);
+          }
 
           const data = await res.json();
-          setMovie(data);
-          setIsLoading(false);
+          if (data.Response === "False") {
+            throw new Error(data.Error || "Movie details could not be loaded");
+          }
+          if (!data.Title) {
+            throw new Error("Movie details returned an invalid response");
+          }
+
+          if (isCurrentRequest) setMovie(data);
         } catch (err) {
-          setError(err.message);
-          throw new Error("something went wrong while fetching movie");
+          if (isCurrentRequest && err.name !== "AbortError") {
+            setError(err.message || "Movie details could not be loaded");
+          }
         } finally {
-          setError("");
+          if (isCurrentRequest) setIsLoading(false);
         }
       }
+
       fetchSelectedMovieDetails();
+
+      return function () {
+        isCurrentRequest = false;
+        controller.abort();
+      };
     },
     [selectedId],
   );
 
   function handleAdd() {
+    const runtime = Number.parseInt(movie.Runtime, 10);
+    const imdbRating = Number.parseFloat(movie.imdbRating);
     const newWatchedMovie = {
       imdbid: selectedId,
       title: movie.Title,
       year: movie.Year,
       poster: movie.Poster,
-      imdbRating: Number(movie.imdbRating),
-      runtime: Number(movie.Runtime.split(" ").at(0)),
+      imdbRating,
+      runtime,
       userRating: userRating,
       countRatingDecisions: countRef.current,
     };
@@ -244,10 +292,12 @@ function SelectedMovieDetails({ selectedId, goBack, onAddWatched, watched }) {
             <button onClick={goBack} className="btn-back">
               {"<--"}
             </button>
-            <img
-              src={`${movie.Poster}`}
-              alt={`poster of movie:${movie.Title}`}
-            />
+            {movie.Poster && movie.Poster !== "N/A" && (
+              <img
+                src={movie.Poster}
+                alt={`poster of movie:${movie.Title}`}
+              />
+            )}
             <div className="details-overview">
               <h2>{movie.Title}</h2>
               <p>
@@ -263,7 +313,7 @@ function SelectedMovieDetails({ selectedId, goBack, onAddWatched, watched }) {
               <div className="rating">
                 <StarRating
                   maxRating={10}
-                  size="25"
+                  size={25}
                   onSetRating={setUserRating}
                 />
                 {userRating > 0 && (
@@ -313,13 +363,17 @@ function OverviewBox({ watched }) {
 
 function WatchedMovie({ movie }) {
   return (
-    <li key={movie.imdbid}>
-      <img src={movie.poster} alt={`${movie.title} poster`} />
+    <li>
+      {movie.poster && movie.poster !== "N/A" && (
+        <img src={movie.poster} alt={`${movie.title} poster`} />
+      )}
       <h3>{movie.title}</h3>
       <div>
         <p>
           <span>⭐️</span>
-          <span>{movie.imdbRating}</span>
+          <span>
+            {Number.isFinite(movie.imdbRating) ? movie.imdbRating : "N/A"}
+          </span>
         </p>
         <p>
           <span>🌟</span>
@@ -327,7 +381,9 @@ function WatchedMovie({ movie }) {
         </p>
         <p>
           <span>⏳</span>
-          <span>{movie.runtime} min</span>
+          <span>
+            {Number.isFinite(movie.runtime) ? `${movie.runtime} min` : "N/A"}
+          </span>
         </p>
       </div>
     </li>
@@ -338,7 +394,7 @@ function WatchedMovieList({ watched }) {
   return (
     <ul className="list">
       {watched.map((movie) => (
-        <WatchedMovie movie={movie} key={movie.imdbID} />
+        <WatchedMovie movie={movie} key={movie.imdbid} />
       ))}
     </ul>
   );

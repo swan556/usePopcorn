@@ -9,37 +9,51 @@ export function useMovies(query, handleSelectedMovieClose) {
   useEffect(
     function () {
       const controller = new AbortController();
+      let isCurrentRequest = true;
+
       async function fetchMovies() {
         try {
           setError("");
           setIsLoading(true);
           const res = await fetch(
-            `http://www.omdbapi.com/?apikey=${KEY}&s=${query}`,
+            `https://www.omdbapi.com/?apikey=${KEY}&s=${encodeURIComponent(query)}`,
             { signal: controller.signal },
           );
-          if (!res.ok) throw new Error("something went wrong");
+          if (!res.ok) throw new Error(`Movie search failed (HTTP ${res.status})`);
 
           const data = await res.json();
-          if (data.Response === "False") throw new Error("Movie not found");
-          setMovies(data.Search);
-          console.log(data.Search);
+          if (data.Response === "False") {
+            throw new Error(data.Error || "Movie search failed");
+          }
+
+          if (!Array.isArray(data.Search)) {
+            throw new Error("Movie search returned an invalid response");
+          }
+
+          if (isCurrentRequest) setMovies(data.Search);
         } catch (err) {
-          console.error(err.message);
-          if (err.name !== "AbortError") setError(err.message);
+          if (isCurrentRequest && err.name !== "AbortError") {
+            setMovies([]);
+            setError(err.message || "Movie search failed");
+          }
         } finally {
-          setIsLoading(false);
+          if (isCurrentRequest) setIsLoading(false);
         }
       }
+
       if (query.length < 3) {
         setMovies([]);
         setError("");
+        setIsLoading(false);
         return;
       }
+
       fetchMovies();
 
       return function () {
-        handleSelectedMovieClose();
+        isCurrentRequest = false;
         controller.abort();
+        handleSelectedMovieClose();
       };
     },
     [query, handleSelectedMovieClose],
